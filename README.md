@@ -23,7 +23,6 @@ awk '
 ## parse_service
 awk '
 /Nmap scan report/ { ip = $NF }
-
 /^[0-9]+\/tcp/ {
     port = $1
     state = $2
