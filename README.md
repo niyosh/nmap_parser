@@ -28,11 +28,9 @@ awk '
     port = $1
     state = $2
     service = $3
-
    version = ""
     for (i=6; i<=NF; i++) version = version " " $i
     gsub(/^ +| +$/, "", version)
-
    if (state == "open") {
         key = ip " " port
         if (!seen[key]++) {
