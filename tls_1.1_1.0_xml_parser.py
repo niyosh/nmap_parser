@@ -1,66 +1,66 @@
-import xml.etree.ElementTree as ET
-import csv
 import sys
+import csv
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
-def parse_xml(file_path, writer):
-    tree = ET.parse(file_path)
+TLS_VERSIONS = {"TLSv1.0", "TLSv1.1"}
+
+def parse_xml_file(xml_file, results):
+    tree = ET.parse(xml_file)
     root = tree.getroot()
 
     for host in root.findall("host"):
-        address = host.find("address")
-        if address is None:
-            continue
-        ip = address.get("addr")
-
-        ports = host.find("ports")
-        if ports is None:
+        addr = host.find("address")
+        if addr is None:
             continue
 
-        for port in ports.findall("port"):
+        ip = addr.get("addr")
+        ports_elem = host.find("ports")
+        if ports_elem is None:
+            continue
+
+        for port in ports_elem.findall("port"):
             portid = port.get("portid")
             protocol = port.get("protocol")
 
-            tls10 = "No"
-            tls11 = "No"
-
             for script in port.findall("script"):
-                if script.get("id") == "ssl-enum-ciphers":
-                    for table in script.findall(".//table"):
-                        key = table.get("key")
-                        if key == "TLSv1.0":
-                            tls10 = "Yes"
-                        elif key == "TLSv1.1":
-                            tls11 = "Yes"
+                if script.get("id") != "ssl-enum-ciphers":
+                    continue
 
-            # Write only if weak TLS exists
-            if tls10 == "Yes" or tls11 == "Yes":
-                writer.writerow([ip, portid, protocol, tls10, tls11])
+                # Look for TLSv1.0 / TLSv1.1 tables
+                for table in script.findall("table"):
+                    if table.get("key") in TLS_VERSIONS:
+                        results.setdefault(ip, set()).add(f"{portid}/{protocol}")
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python tls_xml_to_csv.py <xml_file | directory> <output.csv>")
+        print("Usage: python tls_xml_to_csv.py <xml_file_or_dir> <output.csv>")
         sys.exit(1)
 
     input_path = Path(sys.argv[1])
     output_csv = sys.argv[2]
 
-    with open(output_csv, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["IP", "Port", "Protocol", "TLSv1.0", "TLSv1.1"])
+    results = {}
 
-        if input_path.is_file() and input_path.suffix == ".xml":
-            parse_xml(input_path, writer)
+    if input_path.is_file() and input_path.suffix == ".xml":
+        parse_xml_file(input_path, results)
 
-        elif input_path.is_dir():
-            for xml_file in input_path.glob("*.xml"):
-                parse_xml(xml_file, writer)
+    elif input_path.is_dir():
+        for xml_file in input_path.glob("*.xml"):
+            parse_xml_file(xml_file, results)
 
-        else:
-            print("Invalid input. Provide an XML file or directory.")
-            sys.exit(1)
+    else:
+        print("Invalid input path")
+        sys.exit(1)
 
-    print(f"[+] CSV report generated: {output_csv}")
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["IP", "Ports_with_TLS_1_0_or_1_1"])
+
+        for ip, ports in sorted(results.items()):
+            writer.writerow([ip, " ".join(sorted(ports))])
+
+    print(f"[+] CSV generated: {output_csv}")
 
 if __name__ == "__main__":
     main()
