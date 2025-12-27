@@ -73,4 +73,7 @@ def main():
         writer.writerow(["IP", "Port", "Service", "Version"])
         writer.writerows(rows)
 
-    print(f
+    print(f"[+] CSV generated: {output_csv}")
+
+if __name__ == "__main__":
+    main()
